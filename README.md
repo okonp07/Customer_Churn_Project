@@ -1,97 +1,60 @@
-# **Customer Churn Prediction**
+# Customer Churn Streamlit App
 
-## **Project Overview**
-Customer churn is a critical business problem, particularly in subscription-based industries. This project aims to predict whether a customer will churn (leave the service) using supervised machine learning models. The insights generated can help businesses take proactive measures to retain customers and improve overall profitability.
+This repository now ships as a Streamlit deployment for customer churn prediction. It turns the original notebook exploration into a reusable scoring workflow with a saved model artifact, batch CSV scoring, and a purple, black, and ash visual theme.
 
-## **Dataset**
-The dataset consists of customer demographic and financial information. The target variable is `Exited`, which indicates whether a customer has churned (`1`) or remained (`0`).
+## What is included
 
-### **Features**
-| Feature            | Description                                              |
-|-------------------|----------------------------------------------------------|
-| RowNumber        | Index of the row (irrelevant for prediction)              |
-| CustomerId       | Unique identifier for each customer (irrelevant)          |
-| Surname          | Customer's surname (not used for prediction)              |
-| CreditScore      | Customer's credit score                                   |
-| Geography        | Customer’s country (France, Germany, Spain)               |
-| Gender           | Customer’s gender (Male/Female)                           |
-| Age              | Customer’s age                                           |
-| Tenure           | Number of years with the bank                            |
-| Balance          | Customer's account balance                               |
-| NumOfProducts    | Number of bank products the customer has                 |
-| HasCrCard        | Whether the customer has a credit card (0 or 1)          |
-| IsActiveMember   | Whether the customer is active (0 or 1)                  |
-| EstimatedSalary  | Estimated annual salary                                  |
-| **Exited**       | **Target variable: 1 = Churn, 0 = Retained**             |
+- `app.py` for the Streamlit interface
+- `streamlit_app.py` as the recommended Streamlit Community Cloud entrypoint
+- `train.py` to rebuild the model artifact
+- `src/modeling.py` for preprocessing, training, evaluation, and scoring helpers
+- `.streamlit/config.toml` for the deployment theme
+- `artifacts/churn_model.joblib` for the persisted production model
 
-## **Project Workflow**
+## Model design
 
-### **1. Data Preprocessing**
-- Remove irrelevant features (`RowNumber`, `CustomerId`, `Surname`).
-- Encode categorical variables (`Gender`, `Geography`).
-- Handle missing values (if any).
-- Standardize numerical features for better model performance.
+The production pipeline intentionally improves on the notebooks:
 
-### **2. Model Development**
-- Split data into training (80%) and testing (20%) sets.
-- Train multiple models including:
-  - Logistic Regression (baseline)
-  - Random Forest
-  - Gradient Boosting (XGBoost, LightGBM, CatBoost)
-- Evaluate models using precision, recall, F1-score, and ROC-AUC.
+- Drops `RowNumber`, `CustomerId`, and `Surname`
+- Uses median and mode imputations where needed
+- One-hot encodes `Geography` and `Gender`
+- Trains a class-weighted `RandomForestClassifier`
+- Reports holdout ROC-AUC and 5-fold cross-validation ROC-AUC
 
-### **3. Hyperparameter Tuning**
-- Optimize model parameters using GridSearchCV or RandomizedSearchCV.
+This avoids identifier leakage and the invalid synthetic category combinations introduced by applying plain SMOTE after one-hot encoding.
 
-### **4. Model Deployment**
-- Save the best-performing model.
-- Deploy using Flask or FastAPI.
-- Integrate with a front-end dashboard for real-time predictions.
+## Local run
 
-## **Installation & Setup**
-
-### **1. Clone the Repository**
 ```bash
- git clone https://github.com/yourusername/customer-churn-prediction.git
- cd customer-churn-prediction
+python3 -m pip install -r requirements.txt
+python3 train.py
+streamlit run streamlit_app.py
 ```
 
-### **2. Install Dependencies**
-```bash
- pip install -r requirements.txt
+## App capabilities
+
+- Single-customer churn scoring from a guided form
+- Batch CSV scoring with downloadable predictions
+- Model room with metrics and feature importance
+- Deployment-friendly auto-load of a saved model artifact
+
+## Expected batch upload columns
+
+```text
+CreditScore, Age, Tenure, Balance, NumOfProducts, HasCrCard, IsActiveMember, EstimatedSalary, Geography, Gender
 ```
 
-### **3. Run the Model Training**
-```bash
- python train.py
-```
+Extra columns are ignored. If `Exited`, `RowNumber`, `CustomerId`, or `Surname` are present, the scoring pipeline drops them automatically.
 
-### **4. Run the API Server (for deployment)**
-```bash
- python app.py
-```
+## Deployment notes
 
-## **Results & Insights**
-- The best model achieved an **ROC-AUC score of X.XX**.
-- **Feature Importance Analysis:**
-  - **Age** and **Balance** were the strongest predictors of churn.
-  - **Active customers** were less likely to churn.
-- **Business Recommendation:**
-  - Provide incentives for customers with high churn risk.
-  - Target inactive members with personalized engagement strategies.
+For Streamlit Community Cloud or similar platforms:
 
-## **Contributors**
-- **Okon Prince** – Data Scientist
-- **Obi Cajetan** _ Data Scientist
-- **Lovina Ehimen-Ugbede (Vina)** - NLP Specialist
+1. Push this project to GitHub with `streamlit_app.py`, `requirements.txt`, `.streamlit/config.toml`, `Churn_Modelling.csv`, and `artifacts/churn_model.joblib` in the repo.
+2. In Streamlit Community Cloud, click `Create app` and select the repository, branch, and `streamlit_app.py` as the entrypoint file.
+3. In `Advanced settings`, choose the Python version you want the app to run with.
+4. If the serialized artifact ever fails to load in the cloud environment, the app will automatically rebuild it from `Churn_Modelling.csv` at startup.
 
-## **License**
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Dataset
 
-## **Acknowledgments**
-- Inspired by real-world customer churn prediction use cases.
-- Special thanks to the open-source machine learning community.
-
----
-
-**Follow this repository for future updates and improvements!**
+The app uses `Churn_Modelling.csv`, a bank customer dataset with the `Exited` column as the churn target.
