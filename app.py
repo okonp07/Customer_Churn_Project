@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -71,6 +72,14 @@ SAMPLE_PROFILES = {
         "EstimatedSalary": 121800.0,
     },
 }
+
+PAGE_LABELS = {
+    "score": "Single Customer Scoring",
+    "batch": "Batch CSV Scoring",
+    "model": "Model Room",
+    "eda": "EDA Lab",
+}
+DEFAULT_PAGE = "score"
 
 
 def inject_styles() -> None:
@@ -163,6 +172,31 @@ def inject_styles() -> None:
                 border: 1px solid rgba(216, 180, 254, 0.18);
                 color: var(--ash);
                 font-size: 0.85rem;
+            }}
+
+            .hero-chip-row {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.45rem;
+                margin-top: 0.8rem;
+            }}
+
+            .metric-chip-link {{
+                text-decoration: none !important;
+            }}
+
+            .metric-chip-link .metric-chip {{
+                margin-top: 0;
+                margin-right: 0;
+                transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+                cursor: pointer;
+            }}
+
+            .metric-chip-link:hover .metric-chip {{
+                transform: translateY(-2px);
+                background: rgba(168, 85, 247, 0.18);
+                border-color: rgba(216, 180, 254, 0.44);
+                color: white;
             }}
 
             .section-note {{
@@ -333,8 +367,157 @@ def importance_chart(feature_importance: list[dict]) -> go.Figure:
     return figure
 
 
+def normalize_page(value: str | None) -> str:
+    page = str(value or DEFAULT_PAGE)
+    if page not in PAGE_LABELS:
+        return DEFAULT_PAGE
+    return page
+
+
+def sync_page_query(page: str) -> None:
+    if st.query_params.get("page", DEFAULT_PAGE) != page:
+        st.query_params["page"] = page
+
+
+def style_figure(figure: go.Figure, height: int = 360) -> go.Figure:
+    figure.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=ASH),
+        margin=dict(l=20, r=20, t=30, b=20),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+        ),
+        height=height,
+    )
+    figure.update_xaxes(
+        showgrid=True,
+        gridcolor="rgba(201, 203, 211, 0.08)",
+        zeroline=False,
+    )
+    figure.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(201, 203, 211, 0.08)",
+        zeroline=False,
+    )
+    return figure
+
+
+def churn_mix_chart(data: pd.DataFrame) -> go.Figure:
+    chart_data = (
+        data["Exited"]
+        .map({0: "Retained", 1: "Churned"})
+        .value_counts()
+        .rename_axis("status")
+        .reset_index(name="customers")
+    )
+    figure = px.pie(
+        chart_data,
+        names="status",
+        values="customers",
+        hole=0.68,
+        color="status",
+        color_discrete_map={"Retained": "#6b7280", "Churned": PURPLE},
+    )
+    figure.update_traces(
+        texttemplate="%{label}<br>%{percent}",
+        hovertemplate="%{label}: %{value}<extra></extra>",
+    )
+    return style_figure(figure, height=340)
+
+
+def geography_churn_chart(data: pd.DataFrame) -> go.Figure:
+    chart_data = (
+        data.groupby(["Geography", "Exited"])
+        .size()
+        .reset_index(name="customers")
+        .assign(status=lambda frame: frame["Exited"].map({0: "Retained", 1: "Churned"}))
+    )
+    figure = px.bar(
+        chart_data,
+        x="Geography",
+        y="customers",
+        color="status",
+        barmode="group",
+        color_discrete_map={"Retained": "#4b5563", "Churned": PURPLE},
+    )
+    figure.update_layout(yaxis_title="Customers", xaxis_title="")
+    return style_figure(figure, height=360)
+
+
+def age_distribution_chart(data: pd.DataFrame) -> go.Figure:
+    chart_data = data.assign(status=data["Exited"].map({0: "Retained", 1: "Churned"}))
+    figure = px.box(
+        chart_data,
+        x="status",
+        y="Age",
+        color="status",
+        points="outliers",
+        color_discrete_map={"Retained": "#6b7280", "Churned": PURPLE},
+    )
+    figure.update_layout(xaxis_title="", yaxis_title="Age")
+    return style_figure(figure, height=360)
+
+
+def product_churn_chart(data: pd.DataFrame) -> go.Figure:
+    chart_data = (
+        data.groupby("NumOfProducts")["Exited"]
+        .mean()
+        .reset_index(name="churn_rate")
+    )
+    figure = px.bar(
+        chart_data,
+        x="NumOfProducts",
+        y="churn_rate",
+        text_auto=".1%",
+        color="churn_rate",
+        color_continuous_scale=["#312e81", "#7e22ce", "#d8b4fe"],
+    )
+    figure.update_layout(
+        xaxis_title="Products held",
+        yaxis_title="Churn rate",
+        coloraxis_showscale=False,
+    )
+    figure.update_yaxes(tickformat=".0%")
+    return style_figure(figure, height=360)
+
+
+def balance_salary_chart(data: pd.DataFrame) -> go.Figure:
+    sample = data.sample(min(1200, len(data)), random_state=42).copy()
+    sample["status"] = sample["Exited"].map({0: "Retained", 1: "Churned"})
+    figure = px.scatter(
+        sample,
+        x="Balance",
+        y="EstimatedSalary",
+        color="status",
+        size="Age",
+        hover_data=["Geography", "Gender", "CreditScore", "Tenure", "NumOfProducts"],
+        color_discrete_map={"Retained": "#6b7280", "Churned": PURPLE},
+        opacity=0.75,
+    )
+    figure.update_layout(
+        xaxis_title="Balance",
+        yaxis_title="Estimated salary",
+    )
+    return style_figure(figure, height=440)
+
+
 def hero_section(bundle: dict, data: pd.DataFrame) -> None:
     metrics = bundle["metrics"]
+    chip_targets = [
+        ("model", f"Holdout ROC-AUC {metrics['roc_auc']:.3f}", "Open the model room"),
+        ("model", f"5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}", "Inspect validation metrics"),
+        ("eda", f"Portfolio churn rate {data['Exited'].mean() * 100:.1f}%", "Jump to EDA Lab"),
+    ]
+    chip_markup = "".join(
+        f'<a href="?page={page}" target="_self" class="metric-chip-link" title="{title}">'
+        f'<span class="metric-chip">{label}</span></a>'
+        for page, label, title in chip_targets
+    )
     st.markdown(
         f"""
         <div class="hero-shell">
@@ -345,9 +528,10 @@ def hero_section(bundle: dict, data: pd.DataFrame) -> None:
                 and model visibility. The underlying pipeline removes identifier leakage and serves a
                 persisted model artifact for faster startup.
             </p>
-            <span class="metric-chip">Holdout ROC-AUC {metrics['roc_auc']:.3f}</span>
-            <span class="metric-chip">5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}</span>
-            <span class="metric-chip">Portfolio churn rate {data['Exited'].mean() * 100:.1f}%</span>
+            <div class="hero-chip-row">{chip_markup}</div>
+            <p class="section-note" style="margin-top: 0.9rem; margin-bottom: 0;">
+                Tap the chips to jump into model diagnostics or the new EDA Lab.
+            </p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -358,6 +542,246 @@ def build_single_record(profile: dict) -> pd.DataFrame:
     return pd.DataFrame([profile])
 
 
+def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
+    left_col, right_col = st.columns([1.2, 0.8], gap="large")
+    with left_col:
+        st.markdown("### Profile Builder")
+        st.markdown(
+            '<p class="section-note">Shape a customer profile and score churn likelihood instantly.</p>',
+            unsafe_allow_html=True,
+        )
+        with st.form("score_form"):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                credit_score = st.slider("Credit Score", 350, 850, int(preset["CreditScore"]))
+                age = st.slider("Age", 18, 92, int(preset["Age"]))
+                tenure = st.slider("Tenure", 0, 10, int(preset["Tenure"]))
+                geography = st.selectbox(
+                    "Geography",
+                    options=bundle["dataset_summary"]["geographies"],
+                    index=bundle["dataset_summary"]["geographies"].index(str(preset["Geography"])),
+                )
+                gender = st.radio(
+                    "Gender",
+                    options=bundle["dataset_summary"]["genders"],
+                    index=bundle["dataset_summary"]["genders"].index(str(preset["Gender"])),
+                    horizontal=True,
+                )
+            with col_b:
+                balance = st.number_input(
+                    "Balance",
+                    min_value=0.0,
+                    max_value=250898.09,
+                    value=float(preset["Balance"]),
+                    step=500.0,
+                )
+                estimated_salary = st.number_input(
+                    "Estimated Salary",
+                    min_value=0.0,
+                    max_value=200000.0,
+                    value=float(preset["EstimatedSalary"]),
+                    step=500.0,
+                )
+                num_products = st.select_slider(
+                    "Number of Products",
+                    options=[1, 2, 3, 4],
+                    value=int(preset["NumOfProducts"]),
+                )
+                has_card = st.radio(
+                    "Has Credit Card",
+                    options=[1, 0],
+                    index=0 if int(preset["HasCrCard"]) == 1 else 1,
+                    format_func=lambda value: "Yes" if value == 1 else "No",
+                    horizontal=True,
+                )
+                is_active = st.radio(
+                    "Is Active Member",
+                    options=[1, 0],
+                    index=0 if int(preset["IsActiveMember"]) == 1 else 1,
+                    format_func=lambda value: "Active" if value == 1 else "Inactive",
+                    horizontal=True,
+                )
+            submitted = st.form_submit_button("Predict churn risk")
+
+        profile = {
+            "CreditScore": credit_score,
+            "Geography": geography,
+            "Gender": gender,
+            "Age": age,
+            "Tenure": tenure,
+            "Balance": balance,
+            "NumOfProducts": num_products,
+            "HasCrCard": has_card,
+            "IsActiveMember": is_active,
+            "EstimatedSalary": estimated_salary,
+        }
+
+        if submitted:
+            st.session_state["latest_profile"] = profile
+
+    with right_col:
+        latest_profile = st.session_state.get("latest_profile", preset)
+        result = score_records(build_single_record(latest_profile), bundle, threshold=threshold).iloc[0]
+        probability = float(result["churn_probability"])
+        st.markdown("### Risk Readout")
+        st.plotly_chart(probability_gauge(probability, threshold), use_container_width=True)
+
+        summary_left, summary_right = st.columns(2)
+        with summary_left:
+            metric_card("Risk band", result["risk_band"])
+        with summary_right:
+            metric_card("Prediction", result["prediction"])
+
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <strong>Recommended action</strong>
+                <p class="hero-copy" style="font-size:0.98rem; margin-top:0.6rem;">
+                    {recommendation_block(probability)}
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write("")
+        st.dataframe(pd.DataFrame([latest_profile]), use_container_width=True, hide_index=True)
+
+
+def render_batch_page(bundle: dict, threshold: float) -> None:
+    st.markdown("### Batch Scoring")
+    st.markdown(
+        '<p class="section-note">Upload a CSV with raw customer features and download a scored file with probability, risk band, and prediction.</p>',
+        unsafe_allow_html=True,
+    )
+    st.code(
+        ", ".join(bundle["feature_columns"]),
+        language="text",
+    )
+    uploaded_file = st.file_uploader("Upload customer CSV", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            batch_frame = pd.read_csv(uploaded_file)
+            scored_frame = score_records(batch_frame, bundle, threshold=threshold)
+            st.success(f"Scored {len(scored_frame):,} customer records.")
+            st.dataframe(scored_frame.head(50), use_container_width=True)
+            st.download_button(
+                "Download scored CSV",
+                data=scored_frame.to_csv(index=False).encode("utf-8"),
+                file_name="churn_scored_output.csv",
+                mime="text/csv",
+            )
+        except Exception as exc:
+            st.error(str(exc))
+
+
+def render_model_page(bundle: dict, metrics: dict) -> None:
+    st.markdown("### Model Room")
+    st.markdown(
+        '<p class="section-note">A transparent snapshot of what is powering the app and how it was trained.</p>',
+        unsafe_allow_html=True,
+    )
+    model_col, chart_col = st.columns([0.9, 1.1], gap="large")
+    with model_col:
+        st.markdown(
+            """
+            <div class="glass-card">
+                <strong>Pipeline notes</strong>
+                <p class="hero-copy" style="font-size:0.98rem; margin-top:0.6rem;">
+                    The production pipeline drops RowNumber, CustomerId, and Surname, imputes missing values,
+                    one-hot encodes Geography and Gender, and scores with a class-weighted Random Forest.
+                </p>
+                <p class="hero-copy" style="font-size:0.98rem;">
+                    This avoids the notebook's identifier leakage and skips synthetic category generation from SMOTE.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.write("")
+        summary_frame = pd.DataFrame(
+            {
+                "Metric": [
+                    "Accuracy",
+                    "Precision",
+                    "Recall",
+                    "F1",
+                    "Holdout ROC-AUC",
+                    "5-fold CV ROC-AUC",
+                ],
+                "Value": [
+                    f"{metrics['accuracy']:.3f}",
+                    f"{metrics['precision']:.3f}",
+                    f"{metrics['recall']:.3f}",
+                    f"{metrics['f1']:.3f}",
+                    f"{metrics['roc_auc']:.3f}",
+                    f"{metrics['cv_roc_auc_mean']:.3f} +/- {metrics['cv_roc_auc_std']:.3f}",
+                ],
+            }
+        )
+        st.dataframe(summary_frame, use_container_width=True, hide_index=True)
+    with chart_col:
+        st.plotly_chart(
+            importance_chart(bundle["feature_importance"]),
+            use_container_width=True,
+        )
+
+
+def render_eda_page(data: pd.DataFrame) -> None:
+    st.markdown("### EDA Lab")
+    st.markdown(
+        '<p class="section-note">Explore who churns, where risk clusters, and which portfolio traits deserve the next business experiment.</p>',
+        unsafe_allow_html=True,
+    )
+
+    summary_row = st.columns(4)
+    with summary_row[0]:
+        metric_card("Customers", f"{len(data):,}")
+    with summary_row[1]:
+        metric_card("Churn rate", format_percent(data["Exited"].mean()))
+    with summary_row[2]:
+        metric_card("Median age", f"{int(data['Age'].median())}")
+    with summary_row[3]:
+        metric_card("Median balance", f"${data['Balance'].median():,.0f}")
+
+    row_one = st.columns(2, gap="large")
+    with row_one[0]:
+        st.plotly_chart(churn_mix_chart(data), use_container_width=True)
+    with row_one[1]:
+        st.plotly_chart(geography_churn_chart(data), use_container_width=True)
+
+    row_two = st.columns(2, gap="large")
+    with row_two[0]:
+        st.plotly_chart(age_distribution_chart(data), use_container_width=True)
+    with row_two[1]:
+        st.plotly_chart(product_churn_chart(data), use_container_width=True)
+
+    st.plotly_chart(balance_salary_chart(data), use_container_width=True)
+
+    insights = [
+        "Customers in Germany churn at a visibly higher rate than the France and Spain segments.",
+        "Older customers show a wider spread and higher upper-tail churn pattern than younger cohorts.",
+        "Accounts with fewer products carry more churn pressure, which supports cross-sell and engagement plays.",
+        "Balance alone is not the story; churn also clusters around inactivity and product concentration.",
+    ]
+    insight_markup = "".join(f"<li>{item}</li>" for item in insights)
+    st.markdown(
+        f"""
+        <div class="glass-card">
+            <strong>EDA readout</strong>
+            <p class="hero-copy" style="font-size:0.98rem; margin-top:0.6rem;">
+                This page is meant to turn the model back into business intuition. Use it to frame retention experiments,
+                segment reviews, and stakeholder conversations before you move into scoring.
+            </p>
+            <ul class="hero-copy" style="margin-top:0.3rem;">
+                {insight_markup}
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     inject_styles()
     bundle = load_artifacts()
@@ -365,24 +789,57 @@ def main() -> None:
     metrics = bundle["metrics"]
     defaults = bundle["input_defaults"]
 
+    active_page = normalize_page(st.query_params.get("page", DEFAULT_PAGE))
+    sync_page_query(active_page)
+
+    if st.session_state.get("page_selector") != active_page:
+        st.session_state["page_selector"] = active_page
+
+    threshold = float(metrics.get("threshold", DEFAULT_THRESHOLD))
+    starter_profile = list(SAMPLE_PROFILES.keys())[0]
+
     with st.sidebar:
         st.markdown("### Control Deck")
-        threshold = st.slider(
-            "Decision threshold",
-            min_value=0.10,
-            max_value=0.90,
-            value=float(metrics.get("threshold", DEFAULT_THRESHOLD)),
-            step=0.01,
+        selected_page = st.radio(
+            "Workspace",
+            options=list(PAGE_LABELS.keys()),
+            format_func=lambda page: PAGE_LABELS[page],
+            key="page_selector",
         )
-        starter_profile = st.selectbox(
-            "Starter profile",
-            options=list(SAMPLE_PROFILES.keys()),
-            index=0,
-        )
-        st.markdown(
-            '<p class="section-note">Use the starter profile to prefill the form, then fine-tune any customer field.</p>',
-            unsafe_allow_html=True,
-        )
+        if selected_page != active_page:
+            st.query_params["page"] = selected_page
+            st.rerun()
+
+        if active_page in {"score", "batch"}:
+            threshold = st.slider(
+                "Decision threshold",
+                min_value=0.10,
+                max_value=0.90,
+                value=float(metrics.get("threshold", DEFAULT_THRESHOLD)),
+                step=0.01,
+            )
+
+        if active_page == "score":
+            starter_profile = st.selectbox(
+                "Starter profile",
+                options=list(SAMPLE_PROFILES.keys()),
+                index=0,
+            )
+            st.markdown(
+                '<p class="section-note">Use the starter profile to prefill the form, then fine-tune any customer field.</p>',
+                unsafe_allow_html=True,
+            )
+        elif active_page == "eda":
+            st.markdown(
+                '<p class="section-note">The EDA Lab turns the raw bank portfolio into segment patterns and risk storylines.</p>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<p class="section-note">Use the hero chips or this workspace switcher to move across the app.</p>',
+                unsafe_allow_html=True,
+            )
+
         st.markdown(
             f"""
             <div class="glass-card">
@@ -409,191 +866,14 @@ def main() -> None:
     with top_row[3]:
         metric_card("Recall", format_percent(metrics["recall"]))
 
-    tab_score, tab_batch, tab_model = st.tabs(
-        ["Single Customer Scoring", "Batch CSV Scoring", "Model Room"]
-    )
-
-    with tab_score:
-        left_col, right_col = st.columns([1.2, 0.8], gap="large")
-        with left_col:
-            st.markdown("### Profile Builder")
-            st.markdown(
-                '<p class="section-note">Shape a customer profile and score churn likelihood instantly.</p>',
-                unsafe_allow_html=True,
-            )
-            with st.form("score_form"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    credit_score = st.slider("Credit Score", 350, 850, int(preset["CreditScore"]))
-                    age = st.slider("Age", 18, 92, int(preset["Age"]))
-                    tenure = st.slider("Tenure", 0, 10, int(preset["Tenure"]))
-                    geography = st.selectbox(
-                        "Geography",
-                        options=bundle["dataset_summary"]["geographies"],
-                        index=bundle["dataset_summary"]["geographies"].index(str(preset["Geography"])),
-                    )
-                    gender = st.radio(
-                        "Gender",
-                        options=bundle["dataset_summary"]["genders"],
-                        index=bundle["dataset_summary"]["genders"].index(str(preset["Gender"])),
-                        horizontal=True,
-                    )
-                with col_b:
-                    balance = st.number_input(
-                        "Balance",
-                        min_value=0.0,
-                        max_value=250898.09,
-                        value=float(preset["Balance"]),
-                        step=500.0,
-                    )
-                    estimated_salary = st.number_input(
-                        "Estimated Salary",
-                        min_value=0.0,
-                        max_value=200000.0,
-                        value=float(preset["EstimatedSalary"]),
-                        step=500.0,
-                    )
-                    num_products = st.select_slider(
-                        "Number of Products",
-                        options=[1, 2, 3, 4],
-                        value=int(preset["NumOfProducts"]),
-                    )
-                    has_card = st.radio(
-                        "Has Credit Card",
-                        options=[1, 0],
-                        index=0 if int(preset["HasCrCard"]) == 1 else 1,
-                        format_func=lambda value: "Yes" if value == 1 else "No",
-                        horizontal=True,
-                    )
-                    is_active = st.radio(
-                        "Is Active Member",
-                        options=[1, 0],
-                        index=0 if int(preset["IsActiveMember"]) == 1 else 1,
-                        format_func=lambda value: "Active" if value == 1 else "Inactive",
-                        horizontal=True,
-                    )
-                submitted = st.form_submit_button("Predict churn risk")
-
-            profile = {
-                "CreditScore": credit_score,
-                "Geography": geography,
-                "Gender": gender,
-                "Age": age,
-                "Tenure": tenure,
-                "Balance": balance,
-                "NumOfProducts": num_products,
-                "HasCrCard": has_card,
-                "IsActiveMember": is_active,
-                "EstimatedSalary": estimated_salary,
-            }
-
-            if submitted:
-                st.session_state["latest_profile"] = profile
-
-        with right_col:
-            latest_profile = st.session_state.get("latest_profile", preset)
-            result = score_records(build_single_record(latest_profile), bundle, threshold=threshold).iloc[0]
-            probability = float(result["churn_probability"])
-            st.markdown("### Risk Readout")
-            st.plotly_chart(probability_gauge(probability, threshold), use_container_width=True)
-
-            summary_left, summary_right = st.columns(2)
-            with summary_left:
-                metric_card("Risk band", result["risk_band"])
-            with summary_right:
-                metric_card("Prediction", result["prediction"])
-
-            st.markdown(
-                f"""
-                <div class="glass-card">
-                    <strong>Recommended action</strong>
-                    <p class="hero-copy" style="font-size:0.98rem; margin-top:0.6rem;">
-                        {recommendation_block(probability)}
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.write("")
-            st.dataframe(pd.DataFrame([latest_profile]), use_container_width=True, hide_index=True)
-
-    with tab_batch:
-        st.markdown("### Batch Scoring")
-        st.markdown(
-            '<p class="section-note">Upload a CSV with raw customer features and download a scored file with probability, risk band, and prediction.</p>',
-            unsafe_allow_html=True,
-        )
-        st.code(
-            ", ".join(bundle["feature_columns"]),
-            language="text",
-        )
-        uploaded_file = st.file_uploader("Upload customer CSV", type=["csv"])
-        if uploaded_file is not None:
-            try:
-                batch_frame = pd.read_csv(uploaded_file)
-                scored_frame = score_records(batch_frame, bundle, threshold=threshold)
-                st.success(f"Scored {len(scored_frame):,} customer records.")
-                st.dataframe(scored_frame.head(50), use_container_width=True)
-                st.download_button(
-                    "Download scored CSV",
-                    data=scored_frame.to_csv(index=False).encode("utf-8"),
-                    file_name="churn_scored_output.csv",
-                    mime="text/csv",
-                )
-            except Exception as exc:
-                st.error(str(exc))
-
-    with tab_model:
-        st.markdown("### Model Room")
-        st.markdown(
-            '<p class="section-note">A transparent snapshot of what is powering the app and how it was trained.</p>',
-            unsafe_allow_html=True,
-        )
-        model_col, chart_col = st.columns([0.9, 1.1], gap="large")
-        with model_col:
-            st.markdown(
-                f"""
-                <div class="glass-card">
-                    <strong>Pipeline notes</strong>
-                    <p class="hero-copy" style="font-size:0.98rem; margin-top:0.6rem;">
-                        The production pipeline drops RowNumber, CustomerId, and Surname, imputes missing values,
-                        one-hot encodes Geography and Gender, and scores with a class-weighted Random Forest.
-                    </p>
-                    <p class="hero-copy" style="font-size:0.98rem;">
-                        This avoids the notebook's identifier leakage and skips synthetic category generation from SMOTE.
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.write("")
-            summary_frame = pd.DataFrame(
-                {
-                    "Metric": [
-                        "Accuracy",
-                        "Precision",
-                        "Recall",
-                        "F1",
-                        "Holdout ROC-AUC",
-                        "5-fold CV ROC-AUC",
-                    ],
-                    "Value": [
-                        f"{metrics['accuracy']:.3f}",
-                        f"{metrics['precision']:.3f}",
-                        f"{metrics['recall']:.3f}",
-                        f"{metrics['f1']:.3f}",
-                        f"{metrics['roc_auc']:.3f}",
-                        f"{metrics['cv_roc_auc_mean']:.3f} +/- {metrics['cv_roc_auc_std']:.3f}",
-                    ],
-                }
-            )
-            st.dataframe(summary_frame, use_container_width=True, hide_index=True)
-        with chart_col:
-            st.plotly_chart(
-                importance_chart(bundle["feature_importance"]),
-                use_container_width=True,
-            )
+    if active_page == "score":
+        render_score_page(bundle, threshold, preset)
+    elif active_page == "batch":
+        render_batch_page(bundle, threshold)
+    elif active_page == "model":
+        render_model_page(bundle, metrics)
+    else:
+        render_eda_page(data)
 
 
 if __name__ == "__main__":

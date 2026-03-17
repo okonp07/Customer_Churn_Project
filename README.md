@@ -36,7 +36,10 @@ streamlit run streamlit_app.py
 - Single-customer churn scoring from a guided form
 - Batch CSV scoring with downloadable predictions
 - Model room with metrics and feature importance
+- EDA Lab with interactive churn exploration charts
 - Deployment-friendly auto-load of a saved model artifact
+
+The hero metric chips at the top of the app now act as live navigation links into the model diagnostics and EDA workspace.
 
 ## Expected batch upload columns
 
