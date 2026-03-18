@@ -183,6 +183,30 @@ def inject_styles() -> None:
                 font-size: 0.85rem;
             }}
 
+            .hero-stat-card {{
+                min-height: 100%;
+                padding: 1rem 1.15rem;
+                border-radius: 22px;
+                background: rgba(34, 26, 47, 0.62);
+                border: 1px solid var(--border);
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            }}
+
+            .hero-stat-label {{
+                color: var(--ash-soft);
+                font-size: 0.88rem;
+                text-transform: uppercase;
+                letter-spacing: 0.06rem;
+            }}
+
+            .hero-stat-value {{
+                color: white;
+                font-size: 1.7rem;
+                font-weight: 700;
+                line-height: 1.15;
+                margin-top: 0.45rem;
+            }}
+
             .section-note {{
                 color: var(--ash-soft);
                 font-size: 0.92rem;
@@ -304,6 +328,18 @@ def metric_card(label: str, value: str, delta: str | None = None) -> None:
         "Prediction": "Binary decision derived from the churn probability and threshold.",
     }
     st.metric(label, value, delta=delta, help=metric_help.get(label))
+
+
+def hero_stat_card(label: str, value: str) -> None:
+    st.markdown(
+        f"""
+        <div class="hero-stat-card">
+            <div class="hero-stat-label">{label}</div>
+            <div class="hero-stat-value">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def format_percent(value: float) -> str:
@@ -542,7 +578,7 @@ def balance_salary_chart(data: pd.DataFrame) -> go.Figure:
     return style_figure(figure, height=440)
 
 
-def hero_section(bundle: dict, data: pd.DataFrame, pages: dict[str, st.Page]) -> None:
+def hero_section(bundle: dict, data: pd.DataFrame) -> None:
     metrics = bundle["metrics"]
     st.markdown(
         f"""
@@ -554,33 +590,30 @@ def hero_section(bundle: dict, data: pd.DataFrame, pages: dict[str, st.Page]) ->
                 persisted model artifact for faster startup.
             </em></p>
             <p class="section-note" style="margin-top: 0.9rem; margin-bottom: 0;">
-                Use the live links below to jump into model diagnostics or the EDA Lab.
+                Snapshot of current model quality and the portfolio's observed churn rate.
             </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    chip_targets = [
+    hero_metrics = [
         (
-            "model",
-            f"Holdout ROC-AUC {metrics['roc_auc']:.3f}",
-            "Open Model Room to inspect holdout performance, feature importance, and pipeline notes.",
+            "Holdout ROC-AUC",
+            f"{metrics['roc_auc']:.3f}",
         ),
         (
-            "model",
-            f"5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}",
-            "Open Model Room to review cross-validation stability and how the model generalizes.",
+            "5-fold CV ROC-AUC",
+            f"{metrics['cv_roc_auc_mean']:.3f}",
         ),
         (
-            "eda",
-            f"Portfolio churn rate {data['Exited'].mean() * 100:.1f}%",
-            "Open EDA Lab to explore churn patterns, segment differences, and portfolio behavior.",
+            "Portfolio churn rate",
+            f"{data['Exited'].mean() * 100:.1f}%",
         ),
     ]
-    button_row = st.columns(3, gap="small")
-    for idx, (page, label, help_text) in enumerate(chip_targets):
-        with button_row[idx]:
-            render_page_link(pages[page], page, label=label, help_text=help_text)
+    stat_row = st.columns(3, gap="small")
+    for idx, (label, value) in enumerate(hero_metrics):
+        with stat_row[idx]:
+            hero_stat_card(label, value)
 
 
 def build_single_record(profile: dict) -> pd.DataFrame:
@@ -1121,7 +1154,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-    hero_section(bundle, data, page_sources)
+    hero_section(bundle, data)
     st.write("")
 
     top_row = st.columns(4)
