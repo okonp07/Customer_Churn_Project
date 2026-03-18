@@ -19,7 +19,7 @@ from src.modeling import (
 )
 
 st.set_page_config(
-    page_title="Churn Signal Studio",
+    page_title="Retention Intelligence Hub",
     page_icon=":crystal_ball:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -547,7 +547,7 @@ def hero_section(bundle: dict, data: pd.DataFrame, pages: dict[str, st.Page]) ->
     st.markdown(
         f"""
         <div class="hero-shell">
-            <h1 class="hero-title">Churn Signal Studio</h1>
+            <h1 class="hero-title">Retention Intelligence Hub</h1>
             <p class="hero-copy">
                 A production-ready Streamlit front end for customer churn scoring, batch uploads,
                 and model visibility. The underlying pipeline removes identifier leakage and serves a
@@ -935,7 +935,7 @@ def render_about_page(bundle: dict, data: pd.DataFrame) -> None:
         st.markdown(
             f"""
             <div class="glass-card">
-                <strong style="font-size: 1.25rem; color: white;">Customer churn prediction for proactive retention</strong>
+                <strong style="font-size: 1.25rem; color: white;">Retention intelligence for proactive customer saves</strong>
                 <p class="hero-copy" style="margin-top: 0.65rem;">
                     This project predicts whether a bank customer is likely to churn, using demographic and financial
                     attributes from <code>Churn_Modelling.csv</code>. The target variable is <code>Exited</code>,

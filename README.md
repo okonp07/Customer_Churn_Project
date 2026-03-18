@@ -1,4 +1,4 @@
-# Customer Churn Streamlit App
+# Retention Intelligence Hub
 
 This repository now ships as a Streamlit deployment for customer churn prediction. It turns the original notebook exploration into a reusable scoring workflow with a saved model artifact, batch CSV scoring, and a purple, black, and ash visual theme.
 
