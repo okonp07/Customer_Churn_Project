@@ -33,6 +33,7 @@ ASH_SOFT = "#9da3b4"
 BLACK = "#05010d"
 SURFACE = "#14111d"
 SURFACE_ALT = "#221a2f"
+PROFILE_IMAGE_PATH = Path(__file__).resolve().parent / "assets" / "pic1.png"
 
 SAMPLE_PROFILES = {
     "Portfolio median": {
@@ -797,6 +798,7 @@ def render_about_page() -> None:
     stack_markup = "".join(f'<span class="about-chip">{item}</span>' for item in stack_items)
     project_lines = [
         "Risk scoring systems",
+        "AB tests",
         "AI-powered dashboards",
         "Retrieval-Augmented Generation (RAG) pipelines",
         "Predictive analytics solutions",
@@ -804,27 +806,32 @@ def render_about_page() -> None:
     ]
     project_markup = "".join(f"<li>{item}</li>" for item in project_lines)
     st.markdown("### About the Author")
-    st.markdown(
-        f"""
-        <div class="glass-card">
-            <strong style="font-size: 1.35rem; color: white;">Okon Prince</strong>
-            <p class="hero-copy" style="font-size: 1.05rem; margin-top: 0.6rem;">AI Engineer &amp; Data Scientist</p>
-            <p class="hero-copy">
-                I design and deploy end-to-end data systems — from raw data to production-ready intelligence.
-            </p>
-            <p class="section-note" style="margin-top: 1rem; margin-bottom: 0.2rem;">Core stack</p>
-            <div class="about-chip-row">{stack_markup}</div>
-            <p class="section-note" style="margin-top: 0.8rem; margin-bottom: 0.3rem;">Projects span</p>
-            <ul class="hero-copy" style="margin-top: 0.2rem;">
-                {project_markup}
-            </ul>
-            <p class="hero-copy" style="margin-top: 1rem;">
-                <strong>I believe:</strong> models are trained, systems are engineered, impact is delivered.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    image_col, content_col = st.columns([0.38, 0.62], gap="large")
+    with image_col:
+        if PROFILE_IMAGE_PATH.exists():
+            st.image(str(PROFILE_IMAGE_PATH), use_container_width=True)
+    with content_col:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <strong style="font-size: 1.35rem; color: white;">Okon Prince</strong>
+                <p class="hero-copy" style="font-size: 1.05rem; margin-top: 0.6rem;">AI Engineer &amp; Data Scientist</p>
+                <p class="hero-copy">
+                    I design and deploy end-to-end data systems — from raw data to production-ready intelligence.
+                </p>
+                <p class="section-note" style="margin-top: 1rem; margin-bottom: 0.2rem;">Core stack</p>
+                <div class="about-chip-row">{stack_markup}</div>
+                <p class="section-note" style="margin-top: 0.8rem; margin-bottom: 0.3rem;">Projects span</p>
+                <ul class="hero-copy" style="margin-top: 0.2rem;">
+                    {project_markup}
+                </ul>
+                <p class="hero-copy" style="margin-top: 1rem;">
+                    <strong>I believe:</strong> models are trained, systems are engineered, impact is delivered.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def render_footer() -> None:
