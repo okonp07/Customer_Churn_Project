@@ -41,7 +41,7 @@ streamlit run streamlit_app.py
 - Batch CSV scoring with downloadable predictions
 - Model room with metrics and feature importance
 - EDA Lab with interactive churn exploration charts
-- About the Author page with profile and stack overview
+- About page with project guidance, usage walkthrough, and author profile
 - Deployment-friendly auto-load of a saved model artifact
 
 The hero metric chips at the top of the app now act as live navigation links into the model diagnostics and EDA workspace.

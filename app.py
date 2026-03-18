@@ -79,9 +79,17 @@ PAGE_LABELS = {
     "batch": "Batch CSV Scoring",
     "model": "Model Room",
     "eda": "EDA Lab",
-    "about": "About the Author",
+    "about": "About",
+}
+PAGE_HELP = {
+    "score": "Open the guided scoring workspace to estimate churn risk for one customer at a time.",
+    "batch": "Open the batch workspace to upload a CSV and score many customer records at once.",
+    "model": "Inspect how the production model was trained, evaluated, and which features matter most.",
+    "eda": "Explore interactive charts that explain who churns and where portfolio risk clusters.",
+    "about": "Read what the project does, how to use the app, and who built it.",
 }
 DEFAULT_PAGE = "score"
+APP_ENTRYPOINT = "streamlit_app.py"
 
 
 def inject_styles() -> None:
@@ -373,14 +381,34 @@ def importance_chart(feature_importance: list[dict]) -> go.Figure:
 
 
 def normalize_page(value: str | None) -> str:
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else DEFAULT_PAGE
     page = str(value or DEFAULT_PAGE)
     if page not in PAGE_LABELS:
         return DEFAULT_PAGE
     return page
 
 
-def set_active_page(page: str) -> None:
-    st.session_state["active_page"] = normalize_page(page)
+def query_target(page: str) -> dict[str, str]:
+    return {"page": normalize_page(page)}
+
+
+def render_page_link(
+    page: str,
+    label: str | None = None,
+    *,
+    help_text: str | None = None,
+    width: str = "stretch",
+    disabled: bool = False,
+) -> None:
+    st.page_link(
+        APP_ENTRYPOINT,
+        label=label or PAGE_LABELS[page],
+        help=help_text or PAGE_HELP[page],
+        width=width,
+        disabled=disabled,
+        query_params=query_target(page),
+    )
 
 
 def style_figure(figure: go.Figure, height: int = 360) -> go.Figure:
@@ -510,7 +538,7 @@ def balance_salary_chart(data: pd.DataFrame) -> go.Figure:
     return style_figure(figure, height=440)
 
 
-def hero_section(bundle: dict, data: pd.DataFrame) -> str | None:
+def hero_section(bundle: dict, data: pd.DataFrame) -> None:
     metrics = bundle["metrics"]
     st.markdown(
         f"""
@@ -522,24 +550,33 @@ def hero_section(bundle: dict, data: pd.DataFrame) -> str | None:
                 persisted model artifact for faster startup.
             </p>
             <p class="section-note" style="margin-top: 0.9rem; margin-bottom: 0;">
-                Use the live metric controls below to jump into model diagnostics or the EDA Lab without reloading the app.
+                Use the live links below to jump into model diagnostics or the EDA Lab.
             </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
     chip_targets = [
-        ("model", f"Holdout ROC-AUC {metrics['roc_auc']:.3f}"),
-        ("model", f"5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}"),
-        ("eda", f"Portfolio churn rate {data['Exited'].mean() * 100:.1f}%"),
+        (
+            "model",
+            f"Holdout ROC-AUC {metrics['roc_auc']:.3f}",
+            "Open Model Room to inspect holdout performance, feature importance, and pipeline notes.",
+        ),
+        (
+            "model",
+            f"5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}",
+            "Open Model Room to review cross-validation stability and how the model generalizes.",
+        ),
+        (
+            "eda",
+            f"Portfolio churn rate {data['Exited'].mean() * 100:.1f}%",
+            "Open EDA Lab to explore churn patterns, segment differences, and portfolio behavior.",
+        ),
     ]
     button_row = st.columns(3, gap="small")
-    clicked_page: str | None = None
-    for idx, (page, label) in enumerate(chip_targets):
+    for idx, (page, label, help_text) in enumerate(chip_targets):
         with button_row[idx]:
-            if st.button(label, key=f"hero-nav-{idx}", type="secondary", use_container_width=True):
-                clicked_page = page
-    return clicked_page
+            render_page_link(page, label=label, help_text=help_text)
 
 
 def build_single_record(profile: dict) -> pd.DataFrame:
@@ -557,19 +594,39 @@ def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
         with st.form("score_form"):
             col_a, col_b = st.columns(2)
             with col_a:
-                credit_score = st.slider("Credit Score", 350, 850, int(preset["CreditScore"]))
-                age = st.slider("Age", 18, 92, int(preset["Age"]))
-                tenure = st.slider("Tenure", 0, 10, int(preset["Tenure"]))
+                credit_score = st.slider(
+                    "Credit Score",
+                    350,
+                    850,
+                    int(preset["CreditScore"]),
+                    help="Set the customer's credit score. Lower scores can raise churn risk in the model.",
+                )
+                age = st.slider(
+                    "Age",
+                    18,
+                    92,
+                    int(preset["Age"]),
+                    help="Choose the customer's age. Older age bands behave differently in the training data.",
+                )
+                tenure = st.slider(
+                    "Tenure",
+                    0,
+                    10,
+                    int(preset["Tenure"]),
+                    help="How many years the customer has stayed with the bank.",
+                )
                 geography = st.selectbox(
                     "Geography",
                     options=bundle["dataset_summary"]["geographies"],
                     index=bundle["dataset_summary"]["geographies"].index(str(preset["Geography"])),
+                    help="Select the customer's country segment. Geography is an important churn signal.",
                 )
                 gender = st.radio(
                     "Gender",
                     options=bundle["dataset_summary"]["genders"],
                     index=bundle["dataset_summary"]["genders"].index(str(preset["Gender"])),
                     horizontal=True,
+                    help="Pick the customer's gender as represented in the source dataset.",
                 )
             with col_b:
                 balance = st.number_input(
@@ -578,6 +635,7 @@ def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
                     max_value=250898.09,
                     value=float(preset["Balance"]),
                     step=500.0,
+                    help="Set the customer's current account balance.",
                 )
                 estimated_salary = st.number_input(
                     "Estimated Salary",
@@ -585,11 +643,13 @@ def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
                     max_value=200000.0,
                     value=float(preset["EstimatedSalary"]),
                     step=500.0,
+                    help="Estimated annual salary for the customer.",
                 )
                 num_products = st.select_slider(
                     "Number of Products",
                     options=[1, 2, 3, 4],
                     value=int(preset["NumOfProducts"]),
+                    help="How many banking products the customer currently holds.",
                 )
                 has_card = st.radio(
                     "Has Credit Card",
@@ -597,6 +657,7 @@ def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
                     index=0 if int(preset["HasCrCard"]) == 1 else 1,
                     format_func=lambda value: "Yes" if value == 1 else "No",
                     horizontal=True,
+                    help="Indicate whether the customer has a credit card.",
                 )
                 is_active = st.radio(
                     "Is Active Member",
@@ -604,8 +665,12 @@ def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
                     index=0 if int(preset["IsActiveMember"]) == 1 else 1,
                     format_func=lambda value: "Active" if value == 1 else "Inactive",
                     horizontal=True,
+                    help="Tell the model whether the customer is active or inactive.",
                 )
-            submitted = st.form_submit_button("Predict churn risk")
+            submitted = st.form_submit_button(
+                "Predict churn risk",
+                help="Score the profile and estimate the likelihood that this customer will churn.",
+            )
 
         profile = {
             "CreditScore": credit_score,
@@ -662,7 +727,11 @@ def render_batch_page(bundle: dict, threshold: float) -> None:
         ", ".join(bundle["feature_columns"]),
         language="text",
     )
-    uploaded_file = st.file_uploader("Upload customer CSV", type=["csv"])
+    uploaded_file = st.file_uploader(
+        "Upload customer CSV",
+        type=["csv"],
+        help="Upload a CSV containing the model input columns so the app can score many customers at once.",
+    )
     if uploaded_file is not None:
         try:
             batch_frame = pd.read_csv(uploaded_file)
@@ -674,6 +743,7 @@ def render_batch_page(bundle: dict, threshold: float) -> None:
                 data=scored_frame.to_csv(index=False).encode("utf-8"),
                 file_name="churn_scored_output.csv",
                 mime="text/csv",
+                help="Download the scored dataset with churn probability, risk band, and prediction columns.",
             )
         except Exception as exc:
             st.error(str(exc))
@@ -786,7 +856,7 @@ def render_eda_page(data: pd.DataFrame) -> None:
     )
 
 
-def render_about_page() -> None:
+def render_about_page(bundle: dict, data: pd.DataFrame) -> None:
     stack_items = [
         "Python",
         "Streamlit",
@@ -805,11 +875,69 @@ def render_about_page() -> None:
         "LLM based Solutions",
     ]
     project_markup = "".join(f"<li>{item}</li>" for item in project_lines)
+    st.markdown("### About This Project")
+    intro_col, guide_col = st.columns([1.05, 0.95], gap="large")
+    with intro_col:
+        st.markdown(
+            f"""
+            <div class="glass-card">
+                <strong style="font-size: 1.25rem; color: white;">Customer churn prediction for proactive retention</strong>
+                <p class="hero-copy" style="margin-top: 0.65rem;">
+                    This project predicts whether a bank customer is likely to churn, using demographic and financial
+                    attributes from <code>Churn_Modelling.csv</code>. The target variable is <code>Exited</code>,
+                    where <code>1</code> means the customer churned and <code>0</code> means the customer stayed.
+                </p>
+                <p class="hero-copy">
+                    The goal is to help teams act before churn happens: identify at-risk customers, prioritize outreach,
+                    and support better retention decisions with data instead of guesswork.
+                </p>
+                <p class="hero-copy">
+                    The production app keeps the original project intent from the README, but turns it into a usable tool:
+                    one-customer scoring, batch CSV scoring, model diagnostics, and EDA for stakeholder storytelling.
+                </p>
+                <p class="section-note" style="margin-top: 1rem; margin-bottom: 0.2rem;">Key data signals used</p>
+                <p class="hero-copy" style="margin-top: 0.2rem;">
+                    Credit score, geography, gender, age, tenure, balance, number of products, credit card ownership,
+                    activity status, and estimated salary.
+                </p>
+                <p class="hero-copy" style="margin-top: 0.9rem;">
+                    The current model was trained on <strong>{bundle['dataset_summary']['rows']:,}</strong> customer records,
+                    with an observed churn rate of <strong>{data['Exited'].mean() * 100:.1f}%</strong>.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with guide_col:
+        st.markdown(
+            """
+            <div class="glass-card">
+                <strong style="font-size: 1.25rem; color: white;">How to use the app</strong>
+                <ol class="hero-copy" style="margin-top: 0.7rem; padding-left: 1.2rem;">
+                    <li>Use <strong>Single Customer Scoring</strong> when you want to assess one customer profile manually.</li>
+                    <li>Use <strong>Batch CSV Scoring</strong> when you have a file of many customers to score in one pass.</li>
+                    <li>Use <strong>Model Room</strong> to understand model quality, validation performance, and feature importance.</li>
+                    <li>Use <strong>EDA Lab</strong> to explore who churns, where risk clusters, and what patterns deserve business action.</li>
+                    <li>Adjust the decision threshold when you want stricter or looser churn alerts.</li>
+                </ol>
+                <p class="hero-copy" style="margin-top: 0.9rem;">
+                    Hover over links, buttons, and form controls throughout the app to see quick explanations of what each action does.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
     st.markdown("### About the Author")
     image_col, content_col = st.columns([0.38, 0.62], gap="large")
     with image_col:
         if PROFILE_IMAGE_PATH.exists():
-            st.image(str(PROFILE_IMAGE_PATH), use_container_width=True)
+            st.image(
+                str(PROFILE_IMAGE_PATH),
+                use_container_width=True,
+                caption="Okon Prince",
+            )
     with content_col:
         st.markdown(
             f"""
@@ -850,23 +978,21 @@ def main() -> None:
     metrics = bundle["metrics"]
     defaults = bundle["input_defaults"]
 
-    active_page = normalize_page(st.session_state.get("active_page", DEFAULT_PAGE))
-    st.session_state["active_page"] = active_page
+    active_page = normalize_page(st.query_params.get("page", DEFAULT_PAGE))
 
     threshold = float(metrics.get("threshold", DEFAULT_THRESHOLD))
     starter_profile = list(SAMPLE_PROFILES.keys())[0]
 
     with st.sidebar:
         st.markdown("### Control Deck")
-        selected_page = st.radio(
-            "Workspace",
-            options=list(PAGE_LABELS.keys()),
-            format_func=lambda page: PAGE_LABELS[page],
-            index=list(PAGE_LABELS.keys()).index(active_page),
-        )
-        if selected_page != active_page:
-            set_active_page(selected_page)
-            st.rerun()
+        st.caption(f"Current workspace: {PAGE_LABELS[active_page]}")
+        for page_key in PAGE_LABELS:
+            render_page_link(
+                page_key,
+                help_text=PAGE_HELP[page_key],
+                disabled=page_key == active_page,
+            )
+        st.write("")
 
         if active_page in {"score", "batch"}:
             threshold = st.slider(
@@ -875,6 +1001,7 @@ def main() -> None:
                 max_value=0.90,
                 value=float(metrics.get("threshold", DEFAULT_THRESHOLD)),
                 step=0.01,
+                help="Set the probability cutoff used to classify a customer as likely to churn.",
             )
 
         if active_page == "score":
@@ -882,6 +1009,7 @@ def main() -> None:
                 "Starter profile",
                 options=list(SAMPLE_PROFILES.keys()),
                 index=0,
+                help="Load a sample customer profile into the form so you can start from a realistic scenario.",
             )
             st.markdown(
                 '<p class="section-note">Use the starter profile to prefill the form, then fine-tune any customer field.</p>',
@@ -894,12 +1022,12 @@ def main() -> None:
             )
         elif active_page == "about":
             st.markdown(
-                '<p class="section-note">A short profile of the author behind the app, the stack, and the delivery mindset.</p>',
+                '<p class="section-note">Read the project overview, usage guide, and the author profile in one place.</p>',
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                '<p class="section-note">Use the hero chips or this workspace switcher to move across the app.</p>',
+                '<p class="section-note">Use the workspace links above to move across the app. Hover them to see what each page is for.</p>',
                 unsafe_allow_html=True,
             )
 
@@ -916,10 +1044,7 @@ def main() -> None:
 
     preset = {**defaults, **SAMPLE_PROFILES[starter_profile]}
 
-    hero_target = hero_section(bundle, data)
-    if hero_target and hero_target != active_page:
-        set_active_page(hero_target)
-        st.rerun()
+    hero_section(bundle, data)
     st.write("")
 
     top_row = st.columns(4)
@@ -941,7 +1066,7 @@ def main() -> None:
     elif active_page == "eda":
         render_eda_page(data)
     else:
-        render_about_page()
+        render_about_page(bundle, data)
 
     render_footer()
 
