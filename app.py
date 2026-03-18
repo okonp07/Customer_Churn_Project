@@ -174,31 +174,6 @@ def inject_styles() -> None:
                 font-size: 0.85rem;
             }}
 
-            .hero-chip-row {{
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.45rem;
-                margin-top: 0.8rem;
-            }}
-
-            .metric-chip-link {{
-                text-decoration: none !important;
-            }}
-
-            .metric-chip-link .metric-chip {{
-                margin-top: 0;
-                margin-right: 0;
-                transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
-                cursor: pointer;
-            }}
-
-            .metric-chip-link:hover .metric-chip {{
-                transform: translateY(-2px);
-                background: rgba(168, 85, 247, 0.18);
-                border-color: rgba(216, 180, 254, 0.44);
-                color: white;
-            }}
-
             .section-note {{
                 color: var(--ash-soft);
                 font-size: 0.92rem;
@@ -374,9 +349,8 @@ def normalize_page(value: str | None) -> str:
     return page
 
 
-def sync_page_query(page: str) -> None:
-    if st.query_params.get("page", DEFAULT_PAGE) != page:
-        st.query_params["page"] = page
+def set_active_page(page: str) -> None:
+    st.session_state["active_page"] = normalize_page(page)
 
 
 def style_figure(figure: go.Figure, height: int = 360) -> go.Figure:
@@ -506,18 +480,8 @@ def balance_salary_chart(data: pd.DataFrame) -> go.Figure:
     return style_figure(figure, height=440)
 
 
-def hero_section(bundle: dict, data: pd.DataFrame) -> None:
+def hero_section(bundle: dict, data: pd.DataFrame) -> str | None:
     metrics = bundle["metrics"]
-    chip_targets = [
-        ("model", f"Holdout ROC-AUC {metrics['roc_auc']:.3f}", "Open the model room"),
-        ("model", f"5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}", "Inspect validation metrics"),
-        ("eda", f"Portfolio churn rate {data['Exited'].mean() * 100:.1f}%", "Jump to EDA Lab"),
-    ]
-    chip_markup = "".join(
-        f'<a href="?page={page}" target="_self" class="metric-chip-link" title="{title}">'
-        f'<span class="metric-chip">{label}</span></a>'
-        for page, label, title in chip_targets
-    )
     st.markdown(
         f"""
         <div class="hero-shell">
@@ -528,14 +492,25 @@ def hero_section(bundle: dict, data: pd.DataFrame) -> None:
                 and model visibility. The underlying pipeline removes identifier leakage and serves a
                 persisted model artifact for faster startup.
             </p>
-            <div class="hero-chip-row">{chip_markup}</div>
             <p class="section-note" style="margin-top: 0.9rem; margin-bottom: 0;">
-                Tap the chips to jump into model diagnostics or the new EDA Lab.
+                Use the live metric controls below to jump into model diagnostics or the EDA Lab without reloading the app.
             </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    chip_targets = [
+        ("model", f"Holdout ROC-AUC {metrics['roc_auc']:.3f}"),
+        ("model", f"5-fold CV ROC-AUC {metrics['cv_roc_auc_mean']:.3f}"),
+        ("eda", f"Portfolio churn rate {data['Exited'].mean() * 100:.1f}%"),
+    ]
+    button_row = st.columns(3, gap="small")
+    clicked_page: str | None = None
+    for idx, (page, label) in enumerate(chip_targets):
+        with button_row[idx]:
+            if st.button(label, key=f"hero-nav-{idx}", type="secondary", use_container_width=True):
+                clicked_page = page
+    return clicked_page
 
 
 def build_single_record(profile: dict) -> pd.DataFrame:
@@ -789,11 +764,8 @@ def main() -> None:
     metrics = bundle["metrics"]
     defaults = bundle["input_defaults"]
 
-    active_page = normalize_page(st.query_params.get("page", DEFAULT_PAGE))
-    sync_page_query(active_page)
-
-    if st.session_state.get("page_selector") != active_page:
-        st.session_state["page_selector"] = active_page
+    active_page = normalize_page(st.session_state.get("active_page", DEFAULT_PAGE))
+    st.session_state["active_page"] = active_page
 
     threshold = float(metrics.get("threshold", DEFAULT_THRESHOLD))
     starter_profile = list(SAMPLE_PROFILES.keys())[0]
@@ -804,10 +776,10 @@ def main() -> None:
             "Workspace",
             options=list(PAGE_LABELS.keys()),
             format_func=lambda page: PAGE_LABELS[page],
-            key="page_selector",
+            index=list(PAGE_LABELS.keys()).index(active_page),
         )
         if selected_page != active_page:
-            st.query_params["page"] = selected_page
+            set_active_page(selected_page)
             st.rerun()
 
         if active_page in {"score", "batch"}:
@@ -853,7 +825,10 @@ def main() -> None:
 
     preset = {**defaults, **SAMPLE_PROFILES[starter_profile]}
 
-    hero_section(bundle, data)
+    hero_target = hero_section(bundle, data)
+    if hero_target and hero_target != active_page:
+        set_active_page(hero_target)
+        st.rerun()
     st.write("")
 
     top_row = st.columns(4)

@@ -40,6 +40,7 @@ streamlit run streamlit_app.py
 - Deployment-friendly auto-load of a saved model artifact
 
 The hero metric chips at the top of the app now act as live navigation links into the model diagnostics and EDA workspace.
+The deployment is pinned to `streamlit==1.55.0` to stay aligned with the current runtime used for local validation.
 
 ## Expected batch upload columns
 
