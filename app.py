@@ -485,7 +485,6 @@ def hero_section(bundle: dict, data: pd.DataFrame) -> str | None:
     st.markdown(
         f"""
         <div class="hero-shell">
-            <div class="hero-kicker">Purple / Black / Ash deployment</div>
             <h1 class="hero-title">Churn Signal Studio</h1>
             <p class="hero-copy">
                 A production-ready Streamlit front end for customer churn scoring, batch uploads,

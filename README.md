@@ -2,6 +2,10 @@
 
 This repository now ships as a Streamlit deployment for customer churn prediction. It turns the original notebook exploration into a reusable scoring workflow with a saved model artifact, batch CSV scoring, and a purple, black, and ash visual theme.
 
+## Live App
+
+[Open the deployed Streamlit app](https://churn-01.streamlit.app/)
+
 ## What is included
 
 - `app.py` for the Streamlit interface
