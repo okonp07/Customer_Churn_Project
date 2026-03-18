@@ -78,6 +78,7 @@ PAGE_LABELS = {
     "batch": "Batch CSV Scoring",
     "model": "Model Room",
     "eda": "EDA Lab",
+    "about": "About the Author",
 }
 DEFAULT_PAGE = "score"
 
@@ -178,6 +179,34 @@ def inject_styles() -> None:
                 color: var(--ash-soft);
                 font-size: 0.92rem;
                 margin-bottom: 0.8rem;
+            }}
+
+            .about-chip-row {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 0.6rem;
+                margin-bottom: 1rem;
+            }}
+
+            .about-chip {{
+                display: inline-block;
+                padding: 0.42rem 0.85rem;
+                border-radius: 999px;
+                background: rgba(168, 85, 247, 0.12);
+                border: 1px solid rgba(216, 180, 254, 0.18);
+                color: var(--ash);
+                font-size: 0.86rem;
+            }}
+
+            .footer-note {{
+                margin-top: 2rem;
+                padding-top: 1rem;
+                border-top: 1px solid var(--border);
+                color: var(--ash-soft);
+                text-align: center;
+                font-size: 0.84rem;
+                letter-spacing: 0.04rem;
             }}
 
             div[data-testid="stMetric"] {{
@@ -756,6 +785,57 @@ def render_eda_page(data: pd.DataFrame) -> None:
     )
 
 
+def render_about_page() -> None:
+    stack_items = [
+        "Python",
+        "Streamlit",
+        "BigQuery",
+        "Supabase",
+        "ML",
+        "LLMs",
+    ]
+    stack_markup = "".join(f'<span class="about-chip">{item}</span>' for item in stack_items)
+    project_lines = [
+        "Risk scoring systems",
+        "AI-powered dashboards",
+        "Retrieval-Augmented Generation (RAG) pipelines",
+        "Predictive analytics solutions",
+        "LLM based Solutions",
+    ]
+    project_markup = "".join(f"<li>{item}</li>" for item in project_lines)
+    st.markdown("### About the Author")
+    st.markdown(
+        f"""
+        <div class="glass-card">
+            <strong style="font-size: 1.35rem; color: white;">Okon Prince</strong>
+            <p class="hero-copy" style="font-size: 1.05rem; margin-top: 0.6rem;">AI Engineer &amp; Data Scientist</p>
+            <p class="hero-copy">
+                I design and deploy end-to-end data systems — from raw data to production-ready intelligence.
+            </p>
+            <p class="section-note" style="margin-top: 1rem; margin-bottom: 0.2rem;">Core stack</p>
+            <div class="about-chip-row">{stack_markup}</div>
+            <p class="section-note" style="margin-top: 0.8rem; margin-bottom: 0.3rem;">Projects span</p>
+            <ul class="hero-copy" style="margin-top: 0.2rem;">
+                {project_markup}
+            </ul>
+            <p class="hero-copy" style="margin-top: 1rem;">
+                <strong>I believe:</strong> models are trained, systems are engineered, impact is delivered.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_footer() -> None:
+    st.markdown(
+        """
+        <div class="footer-note">© Okon Prince, 2026</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     inject_styles()
     bundle = load_artifacts()
@@ -805,6 +885,11 @@ def main() -> None:
                 '<p class="section-note">The EDA Lab turns the raw bank portfolio into segment patterns and risk storylines.</p>',
                 unsafe_allow_html=True,
             )
+        elif active_page == "about":
+            st.markdown(
+                '<p class="section-note">A short profile of the author behind the app, the stack, and the delivery mindset.</p>',
+                unsafe_allow_html=True,
+            )
         else:
             st.markdown(
                 '<p class="section-note">Use the hero chips or this workspace switcher to move across the app.</p>',
@@ -846,8 +931,12 @@ def main() -> None:
         render_batch_page(bundle, threshold)
     elif active_page == "model":
         render_model_page(bundle, metrics)
-    else:
+    elif active_page == "eda":
         render_eda_page(data)
+    else:
+        render_about_page()
+
+    render_footer()
 
 
 if __name__ == "__main__":
