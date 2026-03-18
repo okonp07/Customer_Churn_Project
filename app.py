@@ -548,11 +548,11 @@ def hero_section(bundle: dict, data: pd.DataFrame, pages: dict[str, st.Page]) ->
         f"""
         <div class="hero-shell">
             <h1 class="hero-title">Retention Intelligence Hub</h1>
-            <p class="hero-copy">
+            <p class="hero-copy"><em>
                 A production-ready Streamlit front end for customer churn scoring, batch uploads,
                 and model visibility. The underlying pipeline removes identifier leakage and serves a
                 persisted model artifact for faster startup.
-            </p>
+            </em></p>
             <p class="section-note" style="margin-top: 0.9rem; margin-bottom: 0;">
                 Use the live links below to jump into model diagnostics or the EDA Lab.
             </p>
