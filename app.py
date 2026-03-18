@@ -89,7 +89,6 @@ PAGE_HELP = {
     "about": "Read what the project does, how to use the app, and who built it.",
 }
 DEFAULT_PAGE = "score"
-APP_ENTRYPOINT = "streamlit_app.py"
 
 
 def inject_styles() -> None:
@@ -292,7 +291,19 @@ def reference_data() -> pd.DataFrame:
 
 
 def metric_card(label: str, value: str, delta: str | None = None) -> None:
-    st.metric(label, value, delta=delta)
+    metric_help = {
+        "Holdout ROC-AUC": "Model discrimination on the holdout test set. Higher means better separation between churners and non-churners.",
+        "Cross-val ROC-AUC": "Average ROC-AUC across five validation folds, which helps judge stability across different splits.",
+        "Accuracy": "The share of predictions the model got right at the current decision threshold.",
+        "Recall": "How many actual churners the model successfully catches at the current decision threshold.",
+        "Customers": "Total customer records available in the source dataset.",
+        "Churn rate": "Observed proportion of customers who exited in the dataset.",
+        "Median age": "Middle age value across the customer portfolio.",
+        "Median balance": "Middle account balance across the customer portfolio.",
+        "Risk band": "A simple low, medium, or high risk summary based on churn probability.",
+        "Prediction": "Binary decision derived from the churn probability and threshold.",
+    }
+    st.metric(label, value, delta=delta, help=metric_help.get(label))
 
 
 def format_percent(value: float) -> str:
@@ -381,20 +392,14 @@ def importance_chart(feature_importance: list[dict]) -> go.Figure:
 
 
 def normalize_page(value: str | None) -> str:
-    if isinstance(value, (list, tuple)):
-        value = value[0] if value else DEFAULT_PAGE
-    page = str(value or DEFAULT_PAGE)
-    if page not in PAGE_LABELS:
+    if value not in PAGE_LABELS:
         return DEFAULT_PAGE
-    return page
-
-
-def query_target(page: str) -> dict[str, str]:
-    return {"page": normalize_page(page)}
+    return value
 
 
 def render_page_link(
-    page: str,
+    page: st.Page,
+    page_key: str,
     label: str | None = None,
     *,
     help_text: str | None = None,
@@ -402,12 +407,11 @@ def render_page_link(
     disabled: bool = False,
 ) -> None:
     st.page_link(
-        APP_ENTRYPOINT,
-        label=label or PAGE_LABELS[page],
-        help=help_text or PAGE_HELP[page],
+        page,
+        label=label or PAGE_LABELS[page_key],
+        help=help_text or PAGE_HELP[page_key],
         width=width,
         disabled=disabled,
-        query_params=query_target(page),
     )
 
 
@@ -538,7 +542,7 @@ def balance_salary_chart(data: pd.DataFrame) -> go.Figure:
     return style_figure(figure, height=440)
 
 
-def hero_section(bundle: dict, data: pd.DataFrame) -> None:
+def hero_section(bundle: dict, data: pd.DataFrame, pages: dict[str, st.Page]) -> None:
     metrics = bundle["metrics"]
     st.markdown(
         f"""
@@ -576,11 +580,57 @@ def hero_section(bundle: dict, data: pd.DataFrame) -> None:
     button_row = st.columns(3, gap="small")
     for idx, (page, label, help_text) in enumerate(chip_targets):
         with button_row[idx]:
-            render_page_link(page, label=label, help_text=help_text)
+            render_page_link(pages[page], page, label=label, help_text=help_text)
 
 
 def build_single_record(profile: dict) -> pd.DataFrame:
     return pd.DataFrame([profile])
+
+
+def get_page_context() -> dict:
+    bundle = load_artifacts()
+    data = reference_data()
+    metrics = bundle["metrics"]
+    defaults = bundle["input_defaults"]
+    starter_profile = st.session_state.get("starter_profile_select", list(SAMPLE_PROFILES.keys())[0])
+    if starter_profile not in SAMPLE_PROFILES:
+        starter_profile = list(SAMPLE_PROFILES.keys())[0]
+    threshold = float(st.session_state.get("threshold_control", metrics.get("threshold", DEFAULT_THRESHOLD)))
+    preset = {**defaults, **SAMPLE_PROFILES[starter_profile]}
+    return {
+        "bundle": bundle,
+        "data": data,
+        "metrics": metrics,
+        "defaults": defaults,
+        "threshold": threshold,
+        "starter_profile": starter_profile,
+        "preset": preset,
+    }
+
+
+def page_score() -> None:
+    ctx = get_page_context()
+    render_score_page(ctx["bundle"], ctx["threshold"], ctx["preset"])
+
+
+def page_batch() -> None:
+    ctx = get_page_context()
+    render_batch_page(ctx["bundle"], ctx["threshold"])
+
+
+def page_model() -> None:
+    ctx = get_page_context()
+    render_model_page(ctx["bundle"], ctx["metrics"])
+
+
+def page_eda() -> None:
+    ctx = get_page_context()
+    render_eda_page(ctx["data"])
+
+
+def page_about() -> None:
+    ctx = get_page_context()
+    render_about_page(ctx["bundle"], ctx["data"])
 
 
 def render_score_page(bundle: dict, threshold: float, preset: dict) -> None:
@@ -981,8 +1031,19 @@ def main() -> None:
     data = reference_data()
     metrics = bundle["metrics"]
     defaults = bundle["input_defaults"]
-
-    active_page = normalize_page(st.query_params.get("page", DEFAULT_PAGE))
+    page_sources = {
+        "score": st.Page(page_score, title=PAGE_LABELS["score"], icon=":material/person_search:", default=True),
+        "batch": st.Page(page_batch, title=PAGE_LABELS["batch"], icon=":material/upload_file:", url_path="batch"),
+        "model": st.Page(page_model, title=PAGE_LABELS["model"], icon=":material/monitoring:", url_path="model"),
+        "eda": st.Page(page_eda, title=PAGE_LABELS["eda"], icon=":material/analytics:", url_path="eda"),
+        "about": st.Page(page_about, title=PAGE_LABELS["about"], icon=":material/info:", url_path="about"),
+    }
+    current_page = st.navigation(list(page_sources.values()), position="hidden")
+    active_page = DEFAULT_PAGE
+    for key, page in page_sources.items():
+        if current_page is page:
+            active_page = key
+            break
 
     threshold = float(metrics.get("threshold", DEFAULT_THRESHOLD))
     starter_profile = list(SAMPLE_PROFILES.keys())[0]
@@ -992,6 +1053,7 @@ def main() -> None:
         st.caption(f"Current workspace: {PAGE_LABELS[active_page]}")
         for page_key in PAGE_LABELS:
             render_page_link(
+                page_sources[page_key],
                 page_key,
                 help_text=PAGE_HELP[page_key],
                 disabled=page_key == active_page,
@@ -1005,14 +1067,18 @@ def main() -> None:
                 max_value=0.90,
                 value=float(metrics.get("threshold", DEFAULT_THRESHOLD)),
                 step=0.01,
+                key="threshold_control",
                 help="Set the probability cutoff used to classify a customer as likely to churn.",
             )
+        else:
+            st.session_state.setdefault("threshold_control", float(metrics.get("threshold", DEFAULT_THRESHOLD)))
 
         if active_page == "score":
             starter_profile = st.selectbox(
                 "Starter profile",
                 options=list(SAMPLE_PROFILES.keys()),
                 index=0,
+                key="starter_profile_select",
                 help="Load a sample customer profile into the form so you can start from a realistic scenario.",
             )
             st.markdown(
@@ -1020,16 +1086,19 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
         elif active_page == "eda":
+            st.session_state.setdefault("starter_profile_select", list(SAMPLE_PROFILES.keys())[0])
             st.markdown(
                 '<p class="section-note">The EDA Lab turns the raw bank portfolio into segment patterns and risk storylines.</p>',
                 unsafe_allow_html=True,
             )
         elif active_page == "about":
+            st.session_state.setdefault("starter_profile_select", list(SAMPLE_PROFILES.keys())[0])
             st.markdown(
                 '<p class="section-note">Read the project overview, usage guide, and the author profile in one place.</p>',
                 unsafe_allow_html=True,
             )
         else:
+            st.session_state.setdefault("starter_profile_select", list(SAMPLE_PROFILES.keys())[0])
             st.markdown(
                 '<p class="section-note">Use the workspace links above to move across the app. Hover them to see what each page is for.</p>',
                 unsafe_allow_html=True,
@@ -1046,9 +1115,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-    preset = {**defaults, **SAMPLE_PROFILES[starter_profile]}
-
-    hero_section(bundle, data)
+    hero_section(bundle, data, page_sources)
     st.write("")
 
     top_row = st.columns(4)
@@ -1061,16 +1128,7 @@ def main() -> None:
     with top_row[3]:
         metric_card("Recall", format_percent(metrics["recall"]))
 
-    if active_page == "score":
-        render_score_page(bundle, threshold, preset)
-    elif active_page == "batch":
-        render_batch_page(bundle, threshold)
-    elif active_page == "model":
-        render_model_page(bundle, metrics)
-    elif active_page == "eda":
-        render_eda_page(data)
-    else:
-        render_about_page(bundle, data)
+    current_page.run()
 
     render_footer()
 
