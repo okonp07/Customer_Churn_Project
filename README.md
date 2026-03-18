@@ -1,33 +1,49 @@
 # Retention Intelligence Hub
 
-This repository now ships as a Streamlit deployment for customer churn prediction. It turns the original notebook exploration into a reusable scoring workflow with a saved model artifact, batch CSV scoring, and a purple, black, and ash visual theme.
+<p align="center">
+  <a href="https://churn-01.streamlit.app/"><img src="https://img.shields.io/badge/Live%20App-Streamlit-ff4b4b?style=for-the-badge&logo=streamlit&logoColor=white" alt="Live App"></a>
+  <img src="https://img.shields.io/badge/Python-3.x-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.x">
+  <img src="https://img.shields.io/badge/Streamlit-1.55.0-ff4b4b?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit 1.55.0">
+  <img src="https://img.shields.io/badge/scikit--learn-1.4.2-f7931e?style=for-the-badge&logo=scikitlearn&logoColor=white" alt="scikit-learn 1.4.2">
+  <img src="https://img.shields.io/badge/Status-Deployed-success?style=for-the-badge" alt="Status Deployed">
+</p>
+
+<p align="center">
+  Streamlit application for customer churn prediction with single-customer scoring, batch CSV uploads,
+  model diagnostics, and exploratory churn analysis built from the bank customer churn dataset.
+</p>
+
+<p align="center">
+  <strong><a href="https://churn-01.streamlit.app/">Launch the live app</a></strong>
+</p>
+
+<p align="center">
+  <a href="https://churn-01.streamlit.app/"><img src="https://img.shields.io/badge/Open%20The%20Streamlit%20App-Click%20Here-ff4b4b?style=for-the-badge&logo=streamlit&logoColor=white" alt="Open the Streamlit app"></a>
+</p>
 
 ## Live App
 
-[Open the deployed Streamlit app](https://churn-01.streamlit.app/)
+### [Open the deployed Streamlit app](https://churn-01.streamlit.app/)
 
-## What is included
+If the app has just been updated, give Streamlit a minute to finish rebuilding before refreshing the page.
 
-- `app.py` for the Streamlit interface
-- `streamlit_app.py` as the recommended Streamlit Community Cloud entrypoint
-- `train.py` to rebuild the model artifact
-- `src/modeling.py` for preprocessing, training, evaluation, and scoring helpers
-- `.streamlit/config.toml` for the deployment theme
-- `artifacts/churn_model.joblib` for the persisted production model
+## App Preview
 
-## Model design
+<p align="center">
+  <a href="https://churn-01.streamlit.app/">
+    <img src="assets/retention-intelligence-hub-banner.svg" alt="Retention Intelligence Hub app preview banner" width="700"/>
+  </a>
+</p>
 
-The production pipeline intentionally improves on the notebooks:
+## What the App Does
 
-- Drops `RowNumber`, `CustomerId`, and `Surname`
-- Uses median and mode imputations where needed
-- One-hot encodes `Geography` and `Gender`
-- Trains a class-weighted `RandomForestClassifier`
-- Reports holdout ROC-AUC and 5-fold cross-validation ROC-AUC
+- Scores churn risk for a single customer from a guided form
+- Scores batch CSV uploads and returns downloadable predictions
+- Shows holdout and cross-validation model metrics
+- Explains feature importance and pipeline choices in the Model Room
+- Provides interactive EDA views for churn patterns, geography, age, balance, and product behavior
 
-This avoids identifier leakage and the invalid synthetic category combinations introduced by applying plain SMOTE after one-hot encoding.
-
-## Local run
+## Local Run
 
 ```bash
 python3 -m pip install -r requirements.txt
@@ -35,19 +51,7 @@ python3 train.py
 streamlit run streamlit_app.py
 ```
 
-## App capabilities
-
-- Single-customer churn scoring from a guided form
-- Batch CSV scoring with downloadable predictions
-- Model room with metrics and feature importance
-- EDA Lab with interactive churn exploration charts
-- About page with project guidance, usage walkthrough, and author profile
-- Deployment-friendly auto-load of a saved model artifact
-
-The hero metric chips at the top of the app now act as live navigation links into the model diagnostics and EDA workspace.
-The deployment is pinned to `streamlit==1.55.0` to stay aligned with the current runtime used for local validation.
-
-## Expected batch upload columns
+## Expected Batch Upload Columns
 
 ```text
 CreditScore, Age, Tenure, Balance, NumOfProducts, HasCrCard, IsActiveMember, EstimatedSalary, Geography, Gender
@@ -55,15 +59,19 @@ CreditScore, Age, Tenure, Balance, NumOfProducts, HasCrCard, IsActiveMember, Est
 
 Extra columns are ignored. If `Exited`, `RowNumber`, `CustomerId`, or `Surname` are present, the scoring pipeline drops them automatically.
 
-## Deployment notes
+## Project Structure
 
-For Streamlit Community Cloud or similar platforms:
+- `app.py` - Streamlit interface
+- `streamlit_app.py` - deployment entrypoint
+- `train.py` - rebuilds the model artifact
+- `src/modeling.py` - preprocessing, training, evaluation, and scoring helpers
+- `artifacts/churn_model.joblib` - saved production model
+- `.streamlit/config.toml` - Streamlit configuration
 
-1. Push this project to GitHub with `streamlit_app.py`, `requirements.txt`, `.streamlit/config.toml`, `Churn_Modelling.csv`, and `artifacts/churn_model.joblib` in the repo.
-2. In Streamlit Community Cloud, click `Create app` and select the repository, branch, and `streamlit_app.py` as the entrypoint file.
-3. In `Advanced settings`, choose the Python version you want the app to run with.
-4. If the serialized artifact ever fails to load in the cloud environment, the app will automatically rebuild it from `Churn_Modelling.csv` at startup.
+## Model Notes
+
+The production pipeline drops identifier leakage fields, one-hot encodes categorical columns, uses a class-weighted `RandomForestClassifier`, and reports both holdout ROC-AUC and 5-fold cross-validation ROC-AUC.
 
 ## Dataset
 
-The app uses `Churn_Modelling.csv`, a bank customer dataset with the `Exited` column as the churn target.
+The app uses `Churn_Modelling.csv`, with `Exited` as the churn target.
