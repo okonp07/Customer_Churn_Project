@@ -1021,7 +1021,11 @@ def render_about_page(bundle: dict, data: pd.DataFrame) -> None:
 def render_footer() -> None:
     st.markdown(
         """
-        <div class="footer-note">© Okon Prince, 2026</div>
+        <div class="footer-note">
+            <div>© Okon Prince, 2026</div>
+            <div style="margin-top: 0.35rem;">Project Contributors; Cajetan Obi, Lovina Osaigbovo</div>
+            <div style="margin-top: 0.35rem;">Enquiries; okonp07@gmail.com</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
