@@ -983,21 +983,23 @@ def render_about_page(bundle: dict, data: pd.DataFrame) -> None:
         )
 
     st.write("")
-    st.markdown("### About the Author")
+    st.markdown(
+        '<h3 style="text-align:center; margin-bottom: 1rem;">About the Author</h3>',
+        unsafe_allow_html=True,
+    )
     image_col, content_col = st.columns([0.38, 0.62], gap="large")
     with image_col:
         if PROFILE_IMAGE_PATH.exists():
             st.image(
                 str(PROFILE_IMAGE_PATH),
                 use_container_width=True,
-                caption="Okon Prince",
             )
     with content_col:
         st.markdown(
             f"""
             <div class="glass-card">
                 <strong style="font-size: 1.35rem; color: white;">Okon Prince</strong>
-                <p class="hero-copy" style="font-size: 1.05rem; margin-top: 0.6rem;">AI Engineer &amp; Data Scientist</p>
+                <p class="hero-copy" style="font-size: 1.05rem; margin-top: 0.6rem;"><strong><em>AI Engineer &amp; Data Scientist</em></strong></p>
                 <p class="hero-copy">
                     I design and deploy end-to-end data systems — from raw data to production-ready intelligence.
                 </p>
