@@ -862,8 +862,12 @@ def render_about_page(bundle: dict, data: pd.DataFrame) -> None:
         "Streamlit",
         "BigQuery",
         "Supabase",
+        "Hugging Face",
+        "PySpark",
+        "SQL",
         "ML",
         "LLMs",
+        "Transformers",
     ]
     stack_markup = "".join(f'<span class="about-chip">{item}</span>' for item in stack_items)
     project_lines = [
